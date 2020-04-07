@@ -3032,7 +3032,7 @@ func (s *IntSuite) TestRotateSuccess(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// client works as is before servers have been rotated
-	err = runAndMatch(clt, 3, []string{"echo", "hello world"}, ".*hello world.*")
+	err = runAndMatch(clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
 	c.Assert(err, check.IsNil)
 
 	l.Infof("Service reloaded. Setting rotation state to %v", services.RotationPhaseUpdateServers)
@@ -3060,7 +3060,7 @@ func (s *IntSuite) TestRotateSuccess(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// new client works
-	err = runAndMatch(clt, 3, []string{"echo", "hello world"}, ".*hello world.*")
+	err = runAndMatch(clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
 	c.Assert(err, check.IsNil)
 
 	l.Infof("Service reloaded. Setting rotation state to %v.", services.RotationPhaseStandby)
@@ -3081,7 +3081,7 @@ func (s *IntSuite) TestRotateSuccess(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// new client still works
-	err = runAndMatch(clt, 3, []string{"echo", "hello world"}, ".*hello world.*")
+	err = runAndMatch(clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
 	c.Assert(err, check.IsNil)
 
 	l.Infof("Service reloaded. Rotation has completed. Shuttting down service.")
@@ -3176,7 +3176,7 @@ func (s *IntSuite) TestRotateRollback(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// client works as is before servers have been rotated
-	err = runAndMatch(clt, 3, []string{"echo", "hello world"}, ".*hello world.*")
+	err = runAndMatch(clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
 	c.Assert(err, check.IsNil)
 
 	l.Infof("Service reloaded. Setting rotation state to %v", services.RotationPhaseUpdateServers)
@@ -3206,7 +3206,7 @@ func (s *IntSuite) TestRotateRollback(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// old client works
-	err = runAndMatch(clt, 3, []string{"echo", "hello world"}, ".*hello world.*")
+	err = runAndMatch(clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
 	c.Assert(err, check.IsNil)
 
 	l.Infof("Service reloaded. Rotation has completed. Shuttting down service.")
@@ -3324,7 +3324,7 @@ func (s *IntSuite) TestRotateTrustedClusters(c *check.C) {
 	clt, err := main.NewClientWithCreds(cfg, *initialCreds)
 	c.Assert(err, check.IsNil)
 
-	err = runAndMatch(clt, 6, []string{"echo", "hello world"}, ".*hello world.*")
+	err = runAndMatch(clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
 	c.Assert(err, check.IsNil)
 
 	l.Infof("Setting rotation state to %v", services.RotationPhaseInit)
@@ -3376,7 +3376,7 @@ func (s *IntSuite) TestRotateTrustedClusters(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// old client should work as is
-	err = runAndMatch(clt, 6, []string{"echo", "hello world"}, ".*hello world.*")
+	err = runAndMatch(clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
 	c.Assert(err, check.IsNil)
 
 	l.Infof("Service reloaded. Setting rotation state to %v", services.RotationPhaseUpdateServers)
@@ -3403,7 +3403,7 @@ func (s *IntSuite) TestRotateTrustedClusters(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// new client works
-	err = runAndMatch(clt, 3, []string{"echo", "hello world"}, ".*hello world.*")
+	err = runAndMatch(clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
 	c.Assert(err, check.IsNil)
 
 	l.Infof("Service reloaded. Setting rotation state to %v.", services.RotationPhaseStandby)
@@ -3426,7 +3426,7 @@ func (s *IntSuite) TestRotateTrustedClusters(c *check.C) {
 	l.Infof("Phase completed.")
 
 	// new client still works
-	err = runAndMatch(clt, 3, []string{"echo", "hello world"}, ".*hello world.*")
+	err = runAndMatch(clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
 	c.Assert(err, check.IsNil)
 
 	l.Infof("Service reloaded. Rotation has completed. Shuttting down service.")
@@ -3526,6 +3526,7 @@ func runAndMatch(tc *client.TeleportClient, attempts int, command []string, patt
 	for i := 0; i < attempts; i++ {
 		err = tc.SSH(context.TODO(), command, false)
 		if err != nil {
+			time.Sleep(512 * time.Millisecond)
 			continue
 		}
 		out := output.String()
@@ -3535,7 +3536,7 @@ func runAndMatch(tc *client.TeleportClient, attempts int, command []string, patt
 			return nil
 		}
 		err = trace.CompareFailed("output %q did not match pattern %q", out, pattern)
-		time.Sleep(250 * time.Millisecond)
+		time.Sleep(512 * time.Millisecond)
 	}
 	return err
 }
