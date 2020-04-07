@@ -83,6 +83,11 @@ type seeker struct {
 	state   seekState
 	at      time.Time
 	backOff uint64
+	leaseID uint64
+}
+
+func (s seeker) String() string {
+	return fmt.Sprintf("%v(%d)", s.state, s.leaseID)
 }
 
 // transit attempts a state transition.  If transit returns true, then
@@ -221,6 +226,15 @@ func (s *Status) ShouldSeek() bool {
 		return true
 	}
 	return false
+}
+
+// TargetCount is the minumum number of agents that should be active.
+func (s *Status) TargetCount() int {
+	total := s.Seeking + s.Claimed
+	if total < 1 {
+		return 1
+	}
+	return total
 }
 
 // Sum returns the sum of all known proxies.

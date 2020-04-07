@@ -76,20 +76,21 @@ func (s *simpleTestProxies) GetRandProxy() (p testProxy, ok bool) {
 	return s.proxies[i], true
 }
 
-func (s *simpleTestProxies) Discover(handle GroupHandle) (ok bool) {
+func (s *simpleTestProxies) Discover(lease *Lease) (ok bool) {
+	defer lease.Release()
 	proxy, ok := s.GetRandProxy()
 	if !ok {
 		panic("discovery called with no available proxies")
 	}
 	timeout := time.After(proxy.life)
-	ok = handle.WithProxy(func() {
+	ok = lease.WithProxy(func() {
 		ticker := time.NewTicker(jitter(time.Millisecond * 256))
 	Loop:
 		for {
 			select {
 			case <-ticker.C:
 				if p, ok := s.GetRandProxy(); ok {
-					handle.Gossip() <- p.principals[0]
+					lease.Gossip() <- p.principals[0]
 				}
 			case <-timeout:
 				break Loop
@@ -171,10 +172,11 @@ func (s *StateSuite) runBasicProxyTest(c *check.C, timeout time.Duration, allowU
 Discover:
 	for {
 		select {
-		case <-pool.Seek():
-			go proxies.Discover(handle)
+		case lease := <-pool.Grants():
+			go proxies.Discover(lease)
 		case status := <-handle.Status():
 			c.Logf("Status: %+v", status)
+			c.Logf("States: %+v", handle.inner.GetStates())
 			if status.Sum() == proxyCount {
 				break Discover
 			}
@@ -204,9 +206,9 @@ func (s *StateSuite) TestFullRotation(c *check.C) {
 Loop0:
 	for {
 		select {
-		case key := <-pool.Seek():
-			c.Assert(key, check.DeepEquals, Key{Cluster: "test-cluster"})
-			go proxies.Discover(handle)
+		case lease := <-pool.Grants():
+			c.Assert(lease.Key(), check.DeepEquals, Key{Cluster: "test-cluster"})
+			go proxies.Discover(lease)
 		case status := <-handle.Status():
 			c.Logf("Status0: %+v", status)
 			if status.Sum() == proxyCount {
@@ -233,8 +235,8 @@ Loop1:
 Loop2:
 	for {
 		select {
-		case <-pool.Seek():
-			go proxies.Discover(handle)
+		case lease := <-pool.Grants():
+			go proxies.Discover(lease)
 		case status := <-handle.Status():
 			c.Logf("Status2: %+v", status)
 			if status.Claimed >= proxyCount {
@@ -262,7 +264,7 @@ func (s *StateSuite) TestUUIDHandling(c *check.C) {
 	go handle.WithProxy(func() {
 		c.Logf("Successfully claimed proxy")
 		<-ctx.Done()
-	}, "my-proxy.test-cluster")
+	}, 0, "my-proxy.test-cluster")
 
 	// Wait for proxy to be claimed
 Wait:
@@ -313,8 +315,8 @@ func (s *StateSuite) BenchmarkBasicSeek(c *check.C) {
 	Discover:
 		for {
 			select {
-			case <-pool.Seek():
-				go proxies.Discover(handle)
+			case lease := <-pool.Grants():
+				go proxies.Discover(lease)
 			case status := <-handle.Status():
 				c.Logf("Status: %+v", status)
 				if status.Sum() == proxyCount {
