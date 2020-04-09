@@ -157,8 +157,8 @@ func NewAgent(cfg AgentConfig) (*Agent, error) {
 		ctx:         ctx,
 		cancel:      cancel,
 		authMethods: []ssh.AuthMethod{ssh.PublicKeys(cfg.Signers...)},
+		state:       agentStateConnecting,
 	}
-	a.state = agentStateConnecting
 	a.Entry = log.WithFields(log.Fields{
 		trace.Component: teleport.ComponentReverseTunnelAgent,
 		trace.ComponentFields: log.Fields{

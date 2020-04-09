@@ -274,14 +274,14 @@ func (s *GroupHandle) Done() <-chan struct{} {
 // WithProxy is used to wrap the connection-handling logic of an agent,
 // ensuring that it is run if and only if no other agent is already
 // handling this proxy.
-func (s *GroupHandle) WithProxy(do func(), leaseID uint64, principals ...string) (did bool) {
+func (s *GroupHandle) WithProxy(work func(), leaseID uint64, principals ...string) (didWork bool) {
 	if !s.inner.TryAcquireProxy(leaseID, principals...) {
 		return false
 	}
 	defer s.inner.ReleaseProxy(principals...)
 	connectedGauge.Inc()
 	defer connectedGauge.Dec()
-	do()
+	work()
 	return true
 }
 

@@ -2392,14 +2392,14 @@ func waitForActiveTunnelConnections(c *check.C, tunnel reversetunnel.Server, clu
 // reach some value.
 func waitForProxyCount(t *TeleInstance, clusterName string, count int) error {
 	var counts map[string]int
-
-	for i := 0; i < 32; i++ {
+	start := time.Now()
+	for time.Since(start) < 17*time.Second {
 		counts = t.Pool.Counts()
 		if counts[clusterName] == count {
 			return nil
 		}
 
-		time.Sleep(512 * time.Millisecond)
+		time.Sleep(500 * time.Millisecond)
 	}
 
 	return trace.BadParameter("proxy count on %v: %v (wanted %v)", clusterName, counts[clusterName], count)
@@ -3526,7 +3526,7 @@ func runAndMatch(tc *client.TeleportClient, attempts int, command []string, patt
 	for i := 0; i < attempts; i++ {
 		err = tc.SSH(context.TODO(), command, false)
 		if err != nil {
-			time.Sleep(512 * time.Millisecond)
+			time.Sleep(500 * time.Millisecond)
 			continue
 		}
 		out := output.String()
@@ -3536,7 +3536,7 @@ func runAndMatch(tc *client.TeleportClient, attempts int, command []string, patt
 			return nil
 		}
 		err = trace.CompareFailed("output %q did not match pattern %q", out, pattern)
-		time.Sleep(512 * time.Millisecond)
+		time.Sleep(500 * time.Millisecond)
 	}
 	return err
 }

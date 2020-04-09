@@ -32,36 +32,6 @@ type fanoutEntry struct {
 	watcher *fanoutWatcher
 }
 
-// Matches attempts to determine if the supplied event matches
-// this WatchKind.  If the WatchKind is misconfigured, or the
-// event appears malformed, an error is returned.
-func (kind WatchKind) Matches(e Event) (bool, error) {
-	if kind.Kind != e.Resource.GetKind() {
-		return false, nil
-	}
-	if kind.Name != "" && kind.Name != e.Resource.GetName() {
-		return false, nil
-	}
-	if len(kind.Filter) > 0 {
-		// no filters currently match delete events
-		if e.Type != backend.OpPut {
-			return false, nil
-		}
-		// Currently only access request make use of filters,
-		// so expect the resource to be an access request.
-		req, ok := e.Resource.(AccessRequest)
-		if !ok {
-			return false, trace.BadParameter("unfilterable resource type: %T", e.Resource)
-		}
-		var filter AccessRequestFilter
-		if err := filter.FromMap(kind.Filter); err != nil {
-			return false, trace.Wrap(err)
-		}
-		return filter.Match(req), nil
-	}
-	return true, nil
-}
-
 // Fanout is a helper which allows a stream of events to be fanned-out to many
 // watchers.  Used by the cache layer to forward events.
 type Fanout struct {
@@ -145,11 +115,10 @@ func (f *Fanout) Emit(events ...Event) {
 func (f *Fanout) CloseWatchers() {
 	f.Lock()
 	defer f.Unlock()
-	for kind, entries := range f.watchers {
+	for _, entries := range f.watchers {
 		for _, entry := range entries {
 			entry.watcher.cancel()
 		}
-		delete(f.watchers, kind)
 	}
 	// watcher map was potentially quite large, so
 	// relenguish that memory.
@@ -167,14 +136,12 @@ func (f *Fanout) addWatcher(w *fanoutWatcher) {
 	}
 }
 
-func (f *Fanout) removeWatcher(w *fanoutWatcher) bool {
-	var found bool
+func (f *Fanout) removeWatcher(w *fanoutWatcher) {
 	for _, kind := range w.watch.Kinds {
 		entries := f.watchers[kind.Kind]
 	Inner:
 		for i, entry := range entries {
 			if entry.watcher == w {
-				found = true
 				entries = append(entries[:i], entries[i+1:]...)
 				break Inner
 			}
@@ -186,7 +153,6 @@ func (f *Fanout) removeWatcher(w *fanoutWatcher) bool {
 			f.watchers[kind.Kind] = entries
 		}
 	}
-	return found
 }
 
 func newFanoutWatcher(ctx context.Context, watch Watch) (*fanoutWatcher, error) {
@@ -244,12 +210,8 @@ func (w *fanoutWatcher) setError(err error) {
 	w.err = err
 }
 
-func (w *fanoutWatcher) getError() error {
+func (w *fanoutWatcher) Error() error {
 	w.emux.Lock()
 	defer w.emux.Unlock()
 	return w.err
-}
-
-func (w *fanoutWatcher) Error() error {
-	return w.getError()
 }

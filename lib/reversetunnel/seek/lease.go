@@ -35,8 +35,8 @@ type Lease struct {
 // WithProxy is used to wrap the connection-handling logic of an agent,
 // ensuring that it is run if and only if no other agent is already
 // handling this proxy.
-func (l *Lease) WithProxy(do func(), principals ...string) (did bool) {
-	return l.GroupHandle.WithProxy(do, l.ID(), principals...)
+func (l *Lease) WithProxy(work func(), principals ...string) (didWork bool) {
+	return l.GroupHandle.WithProxy(work, l.ID(), principals...)
 }
 
 // ID returns the unique ID of this lease.
