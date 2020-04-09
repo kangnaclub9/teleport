@@ -18,36 +18,32 @@ package utils
 
 import (
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
 	"math/rand"
 )
 
-// JitterFunc is a function which applies random jitter to
-// a duration.  Used to randomize backoff values.  An
-// instance of JitterFunc likely has internal state so
-// concurrent usage must be managed via external mutex.
-type JitterFunc func(time.Duration) time.Duration
-
-// Jitter builds a JitterFunc.  The resulting JitterFunc may
-// have setup costs and therefore should be cached for efficency.
-// An instance of Jitter should be safe for concurrent usage.
-type Jitter func() JitterFunc
+// Jitter is a function which applies random jitter to a
+// duration.  Used to randomize backoff values.  Must be
+// safe for concurrent usage.
+type Jitter func(time.Duration) time.Duration
 
 // NewJitter returns the default jitter (currently jitters on
 // the range [n/2,n), but this is subject to change).
 func NewJitter() Jitter {
-	return func() JitterFunc {
-		rng := rand.New(rand.NewSource(time.Now().UnixNano()))
-		return func(d time.Duration) time.Duration {
-			// values less than 1 cause rng to panic, and some logic
-			// relies on treating zero duration as non-blocking case.
-			if d < 1 {
-				return 0
-			}
-			return (d / 2) + time.Duration(rng.Int63n(int64(d))/2)
+	var mu sync.Mutex
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+	return func(d time.Duration) time.Duration {
+		// values less than 1 cause rng to panic, and some logic
+		// relies on treating zero duration as non-blocking case.
+		if d < 1 {
+			return 0
 		}
+		mu.Lock()
+		defer mu.Unlock()
+		return (d / 2) + time.Duration(rng.Int63n(int64(d))/2)
 	}
 }
 
@@ -110,11 +106,7 @@ func NewLinear(cfg LinearConfig) (*Linear, error) {
 func newLinear(cfg LinearConfig) *Linear {
 	closedChan := make(chan time.Time)
 	close(closedChan)
-	var jitter JitterFunc
-	if cfg.Jitter != nil {
-		jitter = cfg.Jitter()
-	}
-	return &Linear{LinearConfig: cfg, closedChan: closedChan, jitter: jitter}
+	return &Linear{LinearConfig: cfg, closedChan: closedChan}
 }
 
 // Linear is used to calculate retry period
@@ -127,7 +119,6 @@ type Linear struct {
 	LinearConfig
 	attempt    int64
 	closedChan chan time.Time
-	jitter     JitterFunc
 }
 
 // Reset resetes retry period to initial state
@@ -151,8 +142,8 @@ func (r *Linear) Duration() time.Duration {
 	if a < 1 {
 		return 0
 	}
-	if r.jitter != nil {
-		a = r.jitter(a)
+	if r.Jitter != nil {
+		a = r.Jitter(a)
 	}
 	if a <= r.Max {
 		return a
